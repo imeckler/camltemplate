@@ -2,6 +2,8 @@ open Core
 
 type alphabet = A | B | C | D
 
+let moves = 
+
 let elt_of_char = function
     | 'a' -> `In A
     | 'A' -> `Inv A
@@ -55,3 +57,4 @@ let w_equal w1 w2 =
   | _    -> Js._false
 
 let () = set_global "eqWord" (Js.wrap_callback (fun jsw1 jsw2 -> w_equal (Js.to_string jsw1) (Js.to_string jsw2)))
+

@@ -23,10 +23,10 @@ let parse_word_arr w : word_arr =
 let word_arr_to_string w_arr =
   String.init (Array.length w_arr) ~f:(fun i -> char_of_elt w_arr.(i))
 
-module Partial (D : sig
-  val reduce : word_arr -> word_arr
-  val equal  : word_arr -> word_arr -> bool
+module Partial (M : sig
+  val rel : char Free_group.t
 end) = struct
+  module D = Dehn.Make(struct type t = char let rel = M.rel end)
   module G = Graph.Sigma
 
   type t =
@@ -37,14 +37,17 @@ end) = struct
   type state =
     { word_arr : word_arr
     ; node     : (unit, char) G.Node.t
+    ; prev     : char Free_group.Elt.t option
     }
+
+  let rand_pos () = (Random.float 1., Random.float 1.)
 
   let create () =
     let graph = G.create () in
-    let node  = G.add_node graph () in
+    let node  = G.add_node ~pos:(rand_pos ()) ~size:1. graph () in
     let nodes = Stringtbl.create () in
     Stringtbl.add nodes ~key:"" ~data:(node, [||]);
-    ({graph; nodes}, {word_arr = [||]; node})
+    ({graph; nodes}, {word_arr = [||]; node; prev = None})
   ;;
 
   let find_node =
@@ -82,24 +85,29 @@ end) = struct
     arr'
   ;;
 
-  let extend ({nodes; graph} as t) curr c =
+  let extend ({nodes; graph} as t) (curr : state) c =
     let w_arr  = arr_snoc curr.word_arr c in
     let w_node = match find_node t w_arr with
       | Some node -> node
       | None      -> (
-        let node = G.add_node graph () in
+        let node = G.add_node ~pos:(rand_pos ()) ~size:1. graph () in
         Stringtbl.add nodes ~key:(word_arr_to_string w_arr) ~data:(node, w_arr);
         node)
     in
-    { word_arr = w_arr; node = w_node }
+    G.add_arc_exn ~size:1. ~color:Color.black graph ~src:curr.node ~dst:w_node (char_of_elt c);
+    { word_arr = w_arr; node = w_node; prev = Some c }
   ;;
+
+  let extend_with_rel
 
   let rec extend_to_depth t gens curr d =
     if d = 0
     then ()
     else Array.iter gens ~f:(fun c ->
-      extend_to_depth t gens (extend t curr (`In c)) (d - 1);
-      extend_to_depth t gens (extend t curr (`Inv c)) (d - 1))
+      if Some (`In c) <> curr.prev
+      then extend_to_depth t gens (extend t curr (`Inv c)) (d - 1);
+      if Some (`Inv c) <> curr.prev
+      then extend_to_depth t gens (extend t curr (`In c)) (d - 1))
   ;;
 end
 

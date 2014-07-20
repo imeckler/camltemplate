@@ -2,8 +2,6 @@ open Core
 
 type alphabet = A | B | C | D
 
-let moves = 
-
 let elt_of_char = function
     | 'a' -> `In A
     | 'A' -> `Inv A

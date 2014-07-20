@@ -24,22 +24,31 @@ let word_arr_to_string w_arr =
   String.init (Array.length w_arr) ~f:(fun i -> char_of_elt w_arr.(i))
 
 module Partial (D : sig
-  
+  val reduce : word_arr -> word_arr
+  val equal  : word_arr -> word_arr -> bool
 end) = struct
-(*   module D = Dehn.Make (struct include M type t = char end) *)
+  module G = Graph.Sigma
 
   type t =
-    { nodes : ((unit, char) Graph.Node.t * word_arr) Stringtbl.t
-    ; graph : (unit, char) Graph.Mutable.t
+    { nodes : ((unit, char) G.Node.t * word_arr) Stringtbl.t
+    ; graph : (unit, char) G.t
     }
 
   type state =
     { word_arr : word_arr
-    ; node : (unit, char) Graph.Node.t
+    ; node     : (unit, char) G.Node.t
     }
 
+  let create () =
+    let graph = G.create () in
+    let node  = G.add_node graph () in
+    let nodes = Stringtbl.create () in
+    Stringtbl.add nodes ~key:"" ~data:(node, [||]);
+    ({graph; nodes}, {word_arr = [||]; node})
+  ;;
+
   let find_node =
-    let module M = struct exception Match of (unit, char) Graph.Node.t * string end in
+    let module M = struct exception Match of (unit, char) G.Node.t * string end in
     fun {nodes; graph=_} w ->
     try
       Stringtbl.iter nodes ~f:(fun ~key:representative ~data:(node, w'_arr) ->
@@ -57,6 +66,7 @@ end) = struct
         Stringtbl.add nodes ~key:(word_arr_to_string w) ~data:(node, w)
       end;
       Some node)
+  ;;
 
   let str_snoc s c =
     let n = String.length s in
@@ -73,16 +83,23 @@ end) = struct
   ;;
 
   let extend ({nodes; graph} as t) curr c =
-    let w_arr = arr_snoc curr.word_arr c in
+    let w_arr  = arr_snoc curr.word_arr c in
     let w_node = match find_node t w_arr with
       | Some node -> node
       | None      -> (
-        let node = Graph.Mutable.add_node graph () in
+        let node = G.add_node graph () in
         Stringtbl.add nodes ~key:(word_arr_to_string w_arr) ~data:(node, w_arr);
         node)
     in
     { word_arr = w_arr; node = w_node }
   ;;
 
+  let rec extend_to_depth t gens curr d =
+    if d = 0
+    then ()
+    else Array.iter gens ~f:(fun c ->
+      extend_to_depth t gens (extend t curr (`In c)) (d - 1);
+      extend_to_depth t gens (extend t curr (`Inv c)) (d - 1))
+  ;;
 end
 
